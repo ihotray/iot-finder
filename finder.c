@@ -27,10 +27,9 @@ static void udp_ev_connect_cb(struct mg_connection *c, int ev, void *ev_data, vo
     *(uint64_t*)(c->fn_data) = mg_millis();
 }
 
-static void payload_cb(void *handle, cJSON *req) {
+static void udp_payload_read_cb(void *handle, cJSON *request) {
     struct finder_private *priv = (struct finder_private *)handle;
-    const char* request = cJSON_Print(req);
-    const char *response = NULL;
+    const char *ret = NULL;
     lua_State *L = luaL_newstate();
     luaL_openlibs(L);
 
@@ -45,25 +44,22 @@ static void payload_cb(void *handle, cJSON *req) {
         goto done;
     }
 
-    lua_pushstring(L, request);
+    lua_pushstring(L, request->valuestring);
 
     if (lua_pcall(L, 1, 1, 0)) {//one param, one return values, zero error func
         MG_ERROR(("callback failed"));
         goto done;
     }
 
-    response = lua_tostring(L, -1);
-    if (!response) {
-        MG_ERROR(("lua call no response"));
+    ret = lua_tostring(L, -1);
+    if (!ret) {
+        MG_ERROR(("lua call no ret"));
         goto done;
     }
 
-    MG_INFO(("response: %s", response));
+    MG_INFO(("ret: %s", ret));
 
 done:
-    if (request)
-        cJSON_free((void*)request);
-
     if (L)
         lua_close(L);
 }
@@ -77,7 +73,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
         cJSON *payload = cJSON_GetObjectItem(root, "payload");
         if ( cJSON_IsString(service) && mg_casecmp(service->valuestring, priv->cfg.opts->service) == 0 \
             && cJSON_IsString(payload)) {
-            payload_cb(priv, payload);
+            udp_payload_read_cb(priv, payload);
         } else {
             MG_ERROR(("service name not match or no payload found"));
         }
