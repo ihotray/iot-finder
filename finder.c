@@ -142,11 +142,48 @@ static void udp_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data
     }
 }
 
+static void load_message(void *handle, cJSON *payload) {
+    struct finder_private *priv = (struct finder_private *)handle;
+    const char *ret = NULL;
+    lua_State *L = luaL_newstate();
+    luaL_openlibs(L);
+
+    if ( luaL_dofile(L, priv->cfg.opts->callback_lua) ) {
+        MG_ERROR(("lua dofile failed"));
+        goto done;
+    }
+
+    lua_getfield(L, -1, "load_message");
+    if (!lua_isfunction(L, -1)) {
+        MG_ERROR(("method load_message is not a function"));
+        goto done;
+    }
+
+    if (lua_pcall(L, 0, 1, 0)) {//0 param, one return values, zero error func
+        MG_ERROR(("callback failed"));
+        goto done;
+    }
+
+    ret = lua_tostring(L, -1);
+    if (!ret) {
+        MG_ERROR(("lua call no ret"));
+        goto done;
+    }
+
+    MG_INFO(("ret: %s", ret));
+
+    cJSON_SetValuestring(payload, ret);
+
+done:
+    if (L)
+        lua_close(L);
+}
+
 static void do_broadcast(void *arg, void *address) {
     struct mg_mgr *mgr = (struct mg_mgr *)arg;
     struct finder_private *priv = (struct finder_private *)mgr->userdata;
     struct mg_connection *c;
-    cJSON *root = NULL;
+    cJSON *root = NULL, *payload = NULL;
     char *printed = NULL;
     int flag = 1;
 
@@ -162,14 +199,17 @@ static void do_broadcast(void *arg, void *address) {
 
     root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "service", priv->cfg.opts->service);
-    cJSON_AddStringToObject(root, "payload", priv->cfg.opts->payload);
+
+    payload = cJSON_AddStringToObject(root, "payload", priv->cfg.opts->payload); //default payload
+    load_message(priv, payload); //maybe change payload by lua script
+
     cJSON_AddStringToObject(root, "address", address);
     cJSON_AddNumberToObject(root, "nonce", nonce);
 
     //add sign, sha1(service + payload + address + nonce + key)
     unsigned char digest[20] = {0};
     char sign_str[41] = {0};
-    char *data = mg_mprintf("%s%s%s%d%s", priv->cfg.opts->service, priv->cfg.opts->payload, address, nonce, priv->cfg.opts->key);
+    char *data = mg_mprintf("%s%s%s%d%s", priv->cfg.opts->service, cJSON_GetStringValue(payload), address, nonce, priv->cfg.opts->key);
     //MG_DEBUG(("data: %s", data));
     mg_sha1_ctx ctx;
     mg_sha1_init(&ctx);
