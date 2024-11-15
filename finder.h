@@ -9,6 +9,7 @@ struct finder_option {
     const char *broadcast_port;  //udp 广播端口
     const char *callback_lua;
     const char *payload;
+    const char *key;
     int debug_level;
 };
 

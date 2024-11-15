@@ -71,9 +71,32 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
         cJSON *root = cJSON_ParseWithLength((char *)c->recv.buf, c->recv.len);
         cJSON *service = cJSON_GetObjectItem(root, "service");
         cJSON *payload = cJSON_GetObjectItem(root, "payload");
-        if ( cJSON_IsString(service) && mg_casecmp(service->valuestring, priv->cfg.opts->service) == 0 \
-            && cJSON_IsString(payload)) {
-            udp_payload_read_cb(priv, payload);
+        cJSON *nonce = cJSON_GetObjectItem(root, "nonce");
+        cJSON *sign = cJSON_GetObjectItem(root, "sign");
+        if ( cJSON_IsString(service) && mg_casecmp(cJSON_GetStringValue(service), priv->cfg.opts->service) == 0 \
+            && cJSON_IsString(payload) && cJSON_IsNumber(nonce) && cJSON_IsString(sign) \
+            && nonce->valueint + 60 >  mg_millis() / 1000 ) { //只处理60s内的回复，防止重放攻击
+
+            //check sign, sha1(service + payload + nonce + key)
+            unsigned char digest[20] = {0};
+            char sign_str[41] = {0};
+            char *data = mg_mprintf("%s%s%d%s", priv->cfg.opts->service, cJSON_GetStringValue(payload), \
+                nonce->valueint, priv->cfg.opts->key);
+            //MG_DEBUG(("data: %s", data));
+            mg_sha1_ctx ctx;
+            mg_sha1_init(&ctx);
+            mg_sha1_update(&ctx, (const unsigned char *)data, strlen(data));
+            mg_sha1_final(digest, &ctx);
+            free(data);
+
+            mg_hex(digest, sizeof(digest), sign_str);
+
+            if ( mg_casecmp(cJSON_GetStringValue(sign), sign_str) == 0 ) { //sign matched
+                udp_payload_read_cb(priv, payload);
+            } else {
+                MG_ERROR(("sign not matched"));
+            }
+
         } else {
             MG_ERROR(("service name not match or no payload found"));
         }
@@ -119,7 +142,7 @@ static void udp_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data
     }
 }
 
-static void do_broadcast(void *arg, void *addr) {
+static void do_broadcast(void *arg, void *address) {
     struct mg_mgr *mgr = (struct mg_mgr *)arg;
     struct finder_private *priv = (struct finder_private *)mgr->userdata;
     struct mg_connection *c;
@@ -127,23 +150,42 @@ static void do_broadcast(void *arg, void *addr) {
     char *printed = NULL;
     int flag = 1;
 
-    char * broadcast_addr = mg_mprintf("udp://%s:%s", addr, priv->cfg.opts->broadcast_port);
-    c = mg_connect(mgr, broadcast_addr, udp_cb, NULL);
+    char *broadcast_address = mg_mprintf("udp://%s:%s", address, priv->cfg.opts->broadcast_port);
+    c = mg_connect(mgr, broadcast_address, udp_cb, NULL);
     if (!c) {
-        MG_ERROR(("cannot connect to %s", broadcast_addr));
+        MG_ERROR(("cannot connect to %s", broadcast_address));
         goto done;
     }
     setsockopt(FD(c), SOL_SOCKET, SO_BROADCAST, &flag, sizeof(flag));
 
+    uint64_t nonce = mg_millis()/1000;
+
     root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "service", priv->cfg.opts->service);
-    cJSON_AddStringToObject(root, "address", addr);
     cJSON_AddStringToObject(root, "payload", priv->cfg.opts->payload);
+    cJSON_AddStringToObject(root, "address", address);
+    cJSON_AddNumberToObject(root, "nonce", nonce);
+
+    //add sign, sha1(service + payload + address + nonce + key)
+    unsigned char digest[20] = {0};
+    char sign_str[41] = {0};
+    char *data = mg_mprintf("%s%s%s%d%s", priv->cfg.opts->service, priv->cfg.opts->payload, address, nonce, priv->cfg.opts->key);
+    //MG_DEBUG(("data: %s", data));
+    mg_sha1_ctx ctx;
+    mg_sha1_init(&ctx);
+    mg_sha1_update(&ctx, (const unsigned char *)data, strlen(data));
+    mg_sha1_final(digest, &ctx);
+    free(data);
+
+    mg_hex(digest, sizeof(digest), sign_str);
+    cJSON_AddStringToObject(root, "sign", sign_str);
+
     printed = cJSON_Print(root);
+    MG_INFO(("do_broadcast: %s", printed));
     mg_send(c, printed, strlen(printed));
 
 done:
-    free(broadcast_addr);
+    free(broadcast_address);
     if (printed)
         cJSON_free((void*)printed);
     if (root)

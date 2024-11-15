@@ -9,7 +9,8 @@ static void usage(const char *prog) {
             "  -n SERVICE  - service name for different product, default: '%s'\n"
             "  -p PORT     - udp broadcast port, default: '%s'\n"
             "  -x PATH     - finder callback lua script, default: '%s'\n"
-            "  -d DATA     - finder broadcast data, data length must less then mtu, defualt: discovery\n"
+            "  -d DATA     - finder broadcast data, defualt: 'discovery'\n"
+            "  -k KEY      - udp data sign key, defualt: '******'\n"
             "  -v LEVEL    - debug level, from 0 to 4, default: %d\n"
             "\n"
             "  kill -USR1 `pidof %s` resend broadcast data\n"
@@ -26,6 +27,7 @@ int main(int argc, char *argv[]) {
         .broadcast_port = "5858",
         .callback_lua = "/www/iot/handler/finder.lua",
         .payload = "{\"type\": \"discovery\", \"params\": {\"device\": \"*\"}}",
+        .key = "1a2b3C4D5e6f",
         .debug_level = MG_LL_INFO
     };
 
@@ -39,6 +41,8 @@ int main(int argc, char *argv[]) {
             opts.callback_lua = argv[++i];
         } else if (strcmp(argv[i], "-d") == 0) {
             opts.payload = argv[++i];
+        } else if (strcmp(argv[i], "-k") == 0) {
+            opts.key = argv[++i];
         } else if (strcmp(argv[i], "-v") == 0) {
             opts.debug_level = atoi(argv[++i]);
         } else {
