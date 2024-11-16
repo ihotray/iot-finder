@@ -98,9 +98,9 @@ done:
 }
 
 static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
-    if (c->fn_data) {
+    if (c->fn_data)
         *(uint64_t*)(c->fn_data) = mg_millis();
-    }
+
     if (c->recv.len > 0) {
         char remote[16] = {0};
         mg_snprintf(remote, sizeof(remote)-1, "%M", mg_print_ip, c->rem);
@@ -149,12 +149,11 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
 }
 
 static void udp_ev_poll_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
-    if (c->is_listening) {
+    if (c->is_listening)
         return;
-    }
-    if (!c->fn_data) {
+
+    if (!c->fn_data)
         return;
-    }
 
     if (mg_millis() - *(uint64_t*)(c->fn_data) > 15000) { //15s timeout
         //MG_INFO(("connection %llu timeout", c->id));
