@@ -385,7 +385,9 @@ static void signal_handler(int signo) {
         s_sig_broadcast = 1;
         s_broadcast_times = 0;
         s_next_broadcast_time = mg_millis();
-
+        break;
+    case SIGUSR2:
+        s_sig_broadcast = 0;
         break;
     default:
         s_signo = signo;
@@ -401,6 +403,7 @@ int finder_init(void **priv, void *opts) {
     signal(SIGINT, signal_handler);   // Setup signal handlers - exist event
     signal(SIGTERM, signal_handler);  // manager loop on SIGINT and SIGTERM
     signal(SIGUSR1, signal_handler);
+    signal(SIGUSR2, signal_handler);
 
     *priv = NULL;
     p = calloc(1, sizeof(struct finder_private));

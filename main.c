@@ -15,8 +15,10 @@ static void usage(const char *prog) {
             "  -v LEVEL    - debug level, from 0 to 4, default: %d\n"
             "\n"
             "  kill -USR1 `pidof %s` resend broadcast data\n"
+            "\n"
+            "  kill -USR2 `pidof %s` stop broadcast data\n"
             "\n",
-            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 1, MG_LL_INFO, prog);
+            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 1, MG_LL_INFO, prog, prog);
 
     exit(EXIT_FAILURE);
 }
