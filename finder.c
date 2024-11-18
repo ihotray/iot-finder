@@ -11,6 +11,8 @@
 #include "finder.h"
 
 #define FD(c_) ((MG_SOCKET_TYPE) (size_t) (c_)->fd)
+#define INTERVAL 1000 //1s
+#define DURATION 60000 //60s
 
 static void udp_ev_connect_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
     if (c->fn_data) {
@@ -187,8 +189,9 @@ static void udp_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data
     }
 }
 
-static void load_message(void *handle, cJSON *payload) {
+static cJSON* load_message(void *handle, const char *message) {
     struct finder_private *priv = (struct finder_private *)handle;
+    cJSON *payload = NULL;
     const char *ret = NULL;
     lua_State *L = luaL_newstate();
     luaL_openlibs(L);
@@ -217,11 +220,16 @@ static void load_message(void *handle, cJSON *payload) {
 
     MG_INFO(("ret: %s", ret));
 
-    cJSON_SetValuestring(payload, ret);
-
 done:
+    if (ret) {
+        payload = cJSON_CreateString(ret);
+    } else if (message) {
+        payload = cJSON_CreateString(message);
+    }
     if (L)
         lua_close(L);
+
+    return payload;
 }
 
 static void do_broadcast(void *arg, void *address) {
@@ -246,8 +254,9 @@ static void do_broadcast(void *arg, void *address) {
     cJSON_AddStringToObject(root, "service", priv->cfg.opts->service);
     cJSON_AddStringToObject(root, "finder", priv->finder_id);
 
-    payload = cJSON_AddStringToObject(root, "payload", priv->cfg.opts->payload); //default payload
-    load_message(priv, payload); //maybe change payload by lua script
+    payload = load_message(priv, priv->cfg.opts->payload); //maybe change default payload by lua script
+    if (!payload) //no payload, skip this broadcast
+        goto done;
 
     //add address to payload
     cJSON *new_payload = cJSON_Parse(cJSON_GetStringValue(payload));
@@ -258,6 +267,8 @@ static void do_broadcast(void *arg, void *address) {
         cJSON_free((void*)new_payload_str);
         cJSON_Delete(new_payload);
     }
+
+    cJSON_AddItemToObject(root, "payload", payload);
 
     cJSON_AddNumberToObject(root, "nonce", nonce);
 
@@ -318,12 +329,24 @@ static void broadcast(void *arg) {
 
 static int s_signo = 0;
 static int s_sig_broadcast = 1;
+static int s_broadcast_times = 0;
+static uint64_t s_next_broadcast_time = 0;
 
 void timer_finder_fn(void *arg) {
+    struct mg_mgr *mgr = (struct mg_mgr *)arg;
+    struct finder_private *priv = (struct finder_private *)mgr->userdata;
     if (s_sig_broadcast) {
+        uint64_t now = mg_millis();
+        if (now < s_next_broadcast_time) //not time yet
+            return;
+
         MG_INFO(("broadcasting..."));
         broadcast(arg);
-        s_sig_broadcast = 0;
+
+        s_next_broadcast_time = now + DURATION/priv->cfg.opts->count;
+
+        if (++s_broadcast_times >= priv->cfg.opts->count) //finished this time
+            s_sig_broadcast = 0;
     }
 }
 
@@ -331,6 +354,9 @@ static void signal_handler(int signo) {
     switch (signo) {
     case SIGUSR1:
         s_sig_broadcast = 1;
+        s_broadcast_times = 0;
+        s_next_broadcast_time = mg_millis();
+
         break;
     default:
         s_signo = signo;
@@ -390,7 +416,7 @@ out_err:
 
 void finder_run(void *handle) {
     struct finder_private *priv = (struct finder_private *)handle;
-    while (s_signo == 0) mg_mgr_poll(&priv->mgr, 1000);  // Event loop, 1000ms timeout
+    while (s_signo == 0) mg_mgr_poll(&priv->mgr, INTERVAL);  // Event loop, 1000ms timeout
 }
 
 void finder_exit(void *handle) {

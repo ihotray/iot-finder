@@ -10,6 +10,7 @@ struct finder_option {
     const char *callback_lua;
     const char *payload;
     const char *key;
+    int count;
     int debug_level;
 };
 

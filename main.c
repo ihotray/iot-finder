@@ -9,13 +9,14 @@ static void usage(const char *prog) {
             "  -n SERVICE  - service name for different product, default: '%s'\n"
             "  -p PORT     - udp broadcast port, default: '%s'\n"
             "  -x PATH     - finder callback lua script, default: '%s'\n"
-            "  -d DATA     - finder broadcast data, defualt: 'discovery'\n"
+            "  -d DATA     - finder broadcast default data, defualt: NULL\n"
             "  -k KEY      - udp data sign key, defualt: '******'\n"
+            "  -c COUNT    - udp broadcast request every time, defualt: %d\n"
             "  -v LEVEL    - debug level, from 0 to 4, default: %d\n"
             "\n"
             "  kill -USR1 `pidof %s` resend broadcast data\n"
             "\n",
-            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", MG_LL_INFO, prog);
+            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 1, MG_LL_INFO, prog);
 
     exit(EXIT_FAILURE);
 }
@@ -26,8 +27,9 @@ int main(int argc, char *argv[]) {
         .service = "iot-device",
         .broadcast_port = "5858",
         .callback_lua = "/www/iot/handler/finder.lua",
-        .payload = "{\"type\": \"discovery\", \"params\": {\"device\": \"*\"}}",
+        .payload = NULL,
         .key = "1a2b3C4D5e6f",
+        .count = 1,
         .debug_level = MG_LL_INFO
     };
 
@@ -43,11 +45,17 @@ int main(int argc, char *argv[]) {
             opts.payload = argv[++i];
         } else if (strcmp(argv[i], "-k") == 0) {
             opts.key = argv[++i];
+        } else if (strcmp(argv[i], "-c") == 0) {
+            opts.count = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-v") == 0) {
             opts.debug_level = atoi(argv[++i]);
         } else {
             usage(argv[0]);
         }
+    }
+
+    if (opts.count < 1) {
+        usage(argv[0]);
     }
 
     MG_INFO(("IoT-SDK version  : v%s", MG_VERSION));
