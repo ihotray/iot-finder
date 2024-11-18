@@ -332,6 +332,33 @@ static int s_sig_broadcast = 1;
 static int s_broadcast_times = 0;
 static uint64_t s_next_broadcast_time = 0;
 
+static void on_finish_cb(void *arg) {
+    struct mg_mgr *mgr = (struct mg_mgr *)arg;
+    struct finder_private *priv = (struct finder_private *)mgr->userdata;
+    lua_State *L = luaL_newstate();
+    luaL_openlibs(L);
+
+    if ( luaL_dofile(L, priv->cfg.opts->callback_lua) ) {
+        MG_ERROR(("lua dofile failed"));
+        goto done;
+    }
+
+    lua_getfield(L, -1, "on_finish");
+    if (!lua_isfunction(L, -1)) {
+        MG_ERROR(("method on_finish is not a function"));
+        goto done;
+    }
+
+    if (lua_pcall(L, 0, 0, 0)) {//0 param, 0 return values, zero error func
+        MG_ERROR(("callback failed"));
+        goto done;
+    }
+
+done:
+    if (L)
+        lua_close(L);
+}
+
 void timer_finder_fn(void *arg) {
     struct mg_mgr *mgr = (struct mg_mgr *)arg;
     struct finder_private *priv = (struct finder_private *)mgr->userdata;
@@ -345,8 +372,10 @@ void timer_finder_fn(void *arg) {
 
         s_next_broadcast_time = now + DURATION/priv->cfg.opts->count;
 
-        if (++s_broadcast_times >= priv->cfg.opts->count) //finished this time
+        if (++s_broadcast_times >= priv->cfg.opts->count) {//finished this time
             s_sig_broadcast = 0;
+            on_finish_cb(arg);  //call lua script on_finish
+        }
     }
 }
 
