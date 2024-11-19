@@ -11,6 +11,7 @@ static void usage(const char *prog) {
             "  -x PATH     - finder callback lua script, default: '%s'\n"
             "  -d DATA     - finder broadcast default data, defualt: NULL\n"
             "  -k KEY      - udp data sign key, defualt: '******'\n"
+            "  -t TIME     - time in seconds to broadcast, defualt: %d\n"
             "  -c COUNT    - udp broadcast request every time, defualt: %d\n"
             "  -v LEVEL    - debug level, from 0 to 4, default: %d\n"
             "\n"
@@ -18,7 +19,7 @@ static void usage(const char *prog) {
             "\n"
             "  kill -USR2 `pidof %s` stop broadcast data\n"
             "\n",
-            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 1, MG_LL_INFO, prog, prog);
+            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 60, 1, MG_LL_INFO, prog, prog);
 
     exit(EXIT_FAILURE);
 }
@@ -30,6 +31,7 @@ int main(int argc, char *argv[]) {
         .broadcast_port = "5858",
         .callback_lua = "/www/iot/handler/finder.lua",
         .payload = NULL,
+        .time = 60,
         .key = "1a2b3C4D5e6f",
         .count = 1,
         .debug_level = MG_LL_INFO
@@ -47,6 +49,8 @@ int main(int argc, char *argv[]) {
             opts.payload = argv[++i];
         } else if (strcmp(argv[i], "-k") == 0) {
             opts.key = argv[++i];
+        } else if (strcmp(argv[i], "-t") == 0) {
+            opts.time = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-c") == 0) {
             opts.count = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-v") == 0) {
@@ -56,7 +60,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (opts.count < 1) {
+    if (opts.count < 1 || opts.time < 3) {
         usage(argv[0]);
     }
 

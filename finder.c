@@ -11,8 +11,6 @@
 #include "finder.h"
 
 #define FD(c_) ((MG_SOCKET_TYPE) (size_t) (c_)->fd)
-#define INTERVAL 1000 //1s
-#define DURATION 60000 //60s
 
 static void udp_ev_connect_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
     if (c->fn_data) {
@@ -370,7 +368,7 @@ void timer_finder_fn(void *arg) {
         MG_INFO(("broadcasting..."));
         broadcast(arg);
 
-        s_next_broadcast_time = now + DURATION/priv->cfg.opts->count;
+        s_next_broadcast_time = now + (priv->cfg.opts->time*1000)/priv->cfg.opts->count;
 
         if (++s_broadcast_times >= priv->cfg.opts->count) {//finished this time
             s_sig_broadcast = 0;
@@ -448,7 +446,7 @@ out_err:
 
 void finder_run(void *handle) {
     struct finder_private *priv = (struct finder_private *)handle;
-    while (s_signo == 0) mg_mgr_poll(&priv->mgr, INTERVAL);  // Event loop, 1000ms timeout
+    while (s_signo == 0) mg_mgr_poll(&priv->mgr, 1000);  // Event loop, 1000ms timeout
 }
 
 void finder_exit(void *handle) {
