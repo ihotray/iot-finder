@@ -16,13 +16,13 @@ struct finder_option {
 
 struct finder_config {
     struct finder_option *opts;
+    char finder_id[21]; //id len 20 + 0
+
 };
 
 struct finder_private {
     struct finder_config cfg;
     struct mg_mgr mgr;
-
-    char finder_id[21]; //id len 20 + 0
 };
 
 int finder_main(void *user_options);

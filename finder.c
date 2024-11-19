@@ -65,14 +65,14 @@ static void udp_payload_read_cb(struct mg_connection *c, cJSON *request, cJSON *
 
     root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "service", priv->cfg.opts->service);
-    cJSON_AddStringToObject(root, "finder", priv->finder_id);
+    cJSON_AddStringToObject(root, "finder", priv->cfg.finder_id);
     cJSON_AddStringToObject(root, "payload", ret);
     cJSON_AddNumberToObject(root, "nonce", nonce->valueint);
 
     //add sign, sha1(service + finder + payload + nonce + key)
     unsigned char digest[20] = {0};
     char sign_str[41] = {0};
-    char *data = mg_mprintf("%s%s%s%d%s", priv->cfg.opts->service, priv->finder_id, ret, nonce->valueint, priv->cfg.opts->key);
+    char *data = mg_mprintf("%s%s%s%d%s", priv->cfg.opts->service, priv->cfg.finder_id, ret, nonce->valueint, priv->cfg.opts->key);
     mg_sha1_ctx ctx;
     mg_sha1_init(&ctx);
     mg_sha1_update(&ctx, (const unsigned char *)data, strlen(data));
@@ -117,7 +117,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
         cJSON *sign = cJSON_GetObjectItem(root, "sign");
         //check service name matched and drop the message from itself
         if ( cJSON_IsString(service) && mg_casecmp(cJSON_GetStringValue(service), priv->cfg.opts->service) == 0 \
-            && cJSON_IsString(finder) && mg_casecmp(cJSON_GetStringValue(finder), priv->finder_id) \
+            && cJSON_IsString(finder) && mg_casecmp(cJSON_GetStringValue(finder), priv->cfg.finder_id) \
             && cJSON_IsString(payload) && cJSON_IsNumber(nonce) && cJSON_IsString(sign) \
             && nonce->valueint + 60 >  mg_millis() / 1000 ) { //只处理60s内的回复，防止重放攻击
 
@@ -252,7 +252,7 @@ static void do_broadcast(void *arg, void *address) {
 
     root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "service", priv->cfg.opts->service);
-    cJSON_AddStringToObject(root, "finder", priv->finder_id);
+    cJSON_AddStringToObject(root, "finder", priv->cfg.finder_id);
 
     payload = load_message(priv, priv->cfg.opts->payload); //maybe change default payload by lua script
     if (!payload) //no payload, skip this broadcast
@@ -275,7 +275,7 @@ static void do_broadcast(void *arg, void *address) {
     //add sign, sha1(service + finder_id + payload + nonce + key)
     unsigned char digest[20] = {0};
     char sign_str[41] = {0};
-    char *data = mg_mprintf("%s%s%s%d%s", priv->cfg.opts->service, priv->finder_id, cJSON_GetStringValue(payload), \
+    char *data = mg_mprintf("%s%s%s%d%s", priv->cfg.opts->service, priv->cfg.finder_id, cJSON_GetStringValue(payload), \
         nonce, priv->cfg.opts->key);
     //MG_DEBUG(("data: %s", data));
     mg_sha1_ctx ctx;
@@ -413,9 +413,9 @@ int finder_init(void **priv, void *opts) {
     //生成finder id
     char rnd[10];
     mg_random(rnd, sizeof(rnd));
-    mg_hex(rnd, sizeof(rnd), p->finder_id);
+    mg_hex(rnd, sizeof(rnd), p->cfg.finder_id);
 
-    MG_INFO(("finder id: %s", p->finder_id));
+    MG_INFO(("finder id: %s", p->cfg.finder_id));
 
     p->cfg.opts = opts;
     mg_log_set(p->cfg.opts->debug_level);
