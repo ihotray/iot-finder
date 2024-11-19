@@ -1,8 +1,9 @@
+#include <libgen.h>
 #include <iot/mongoose.h>
 #include "finder.h"
 
 
-static void usage(const char *prog) {
+static void usage(char *prog) {
     fprintf(stderr,
             "IoT-SDK v.%s\n"
             "Usage: %s OPTIONS\n"
@@ -19,7 +20,7 @@ static void usage(const char *prog) {
             "\n"
             "  kill -USR2 `pidof %s` stop broadcast data\n"
             "\n",
-            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 60, 1, MG_LL_INFO, prog, prog);
+            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 60, 1, MG_LL_INFO, basename(prog), basename(prog));
 
     exit(EXIT_FAILURE);
 }
