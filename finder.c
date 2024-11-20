@@ -218,7 +218,7 @@ static cJSON* load_message(void *handle, const char *message) {
         goto done;
     }
 
-    MG_INFO(("ret: %s", ret));
+    MG_DEBUG(("ret: %s", ret));
 
 done:
     if (ret) {
@@ -288,7 +288,7 @@ static void do_broadcast(void *arg, void *address) {
     cJSON_AddStringToObject(root, "sign", sign_str);
 
     printed = cJSON_Print(root);
-    MG_INFO(("do_broadcast: %s -> %s", printed, broadcast_address));
+    MG_DEBUG(("do_broadcast: %s -> %s", printed, broadcast_address));
     mg_send(c, printed, strlen(printed));
 
 done:
@@ -371,7 +371,7 @@ void timer_finder_fn(void *arg) {
         if (now < s_next_broadcast_time) //not time yet
             return;
 
-        MG_INFO(("broadcasting..."));
+        MG_DEBUG(("broadcasting..."));
         broadcast(arg);
 
         s_next_broadcast_time = now + (priv->cfg.opts->time*1000)/priv->cfg.opts->count;
