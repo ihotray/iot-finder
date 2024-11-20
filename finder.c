@@ -105,7 +105,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
         char remote[16] = {0};
         mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, &c->rem);
 
-        MG_INFO(("udp_ev_read_cb: %.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
+        MG_DEBUG(("udp_ev_read_cb: %.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
         struct finder_private *priv = (struct finder_private *)c->mgr->userdata;
         cJSON *root = cJSON_ParseWithLength((char *)c->recv.buf, c->recv.len);
         cJSON *service = cJSON_GetObjectItem(root, "service");
@@ -118,6 +118,8 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
             && cJSON_IsString(finder) && mg_casecmp(cJSON_GetStringValue(finder), priv->cfg.finder_id) \
             && cJSON_IsString(payload) && cJSON_IsNumber(nonce) && cJSON_IsString(sign) \
             && nonce->valueint + 60 >  mg_millis() / 1000 ) { //只处理60s内的回复，防止重放攻击
+
+            MG_INFO(("%.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
 
             //check sign, sha1(service + finder + payload + nonce + key)
             unsigned char digest[20] = {0};
@@ -140,7 +142,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
             }
 
         } else {
-            MG_ERROR(("unexpected message"));
+            MG_DEBUG(("unexpected message"));
         }
         cJSON_Delete(root);
     }
