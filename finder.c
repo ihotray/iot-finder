@@ -81,7 +81,7 @@ static void udp_payload_read_cb(struct mg_connection *c, cJSON *request, cJSON *
     cJSON_AddStringToObject(root, "sign", sign_str);
 
     char remote[16] = {0};
-    mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, c->rem);
+    mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, &c->rem);
     response = cJSON_Print(root);
 
     MG_INFO(("response: %s -> %s", response, remote));
@@ -103,7 +103,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
 
     if (c->recv.len > 0) {
         char remote[16] = {0};
-        mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, c->rem);
+        mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, &c->rem);
 
         MG_INFO(("udp_ev_read_cb: %.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
         struct finder_private *priv = (struct finder_private *)c->mgr->userdata;
