@@ -307,20 +307,24 @@ static void broadcast(void *arg) {
         MG_ERROR(("unable to get interface addresses\n"));
 
     for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
-        if (!ifa->ifa_addr)
+        if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET)
+            continue;
+        if (!ifa->ifa_netmask || ifa->ifa_netmask->sa_family != AF_INET)
             continue;
         if (!(ifa->ifa_flags & IFF_UP) || !(ifa->ifa_flags & IFF_BROADCAST))
             continue;
         if ((ifa->ifa_flags & IFF_LOOPBACK) || (ifa->ifa_flags & IFF_POINTOPOINT))
             continue;
 
-        if (ifa->ifa_addr->sa_family == AF_INET) {
-            struct sockaddr_in* saddr = (struct sockaddr_in*)ifa->ifa_ifu.ifu_broadaddr;
-            char broadcast_address[32] = {0};
-            inet_ntop(AF_INET, &(saddr->sin_addr), broadcast_address, sizeof(broadcast_address));
-            MG_INFO(("%16s's broadcast address: %s", ifa->ifa_name, broadcast_address));
-            do_broadcast(arg, broadcast_address);
-        }
+        struct sockaddr_in* netmask = (struct sockaddr_in*)ifa->ifa_netmask;
+        if (netmask->sin_addr.s_addr == 0xffffffff)  //32bit mask, don't need broadcast
+            continue;
+
+        struct sockaddr_in* saddr = (struct sockaddr_in*)ifa->ifa_ifu.ifu_broadaddr;
+        char broadcast_address[32] = {0};
+        inet_ntop(AF_INET, &(saddr->sin_addr), broadcast_address, sizeof(broadcast_address));
+        MG_INFO(("%16s's broadcast address: %s", ifa->ifa_name, broadcast_address));
+        do_broadcast(arg, broadcast_address);
     }
 
     if (ifaddr)
