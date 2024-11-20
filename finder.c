@@ -12,7 +12,7 @@
 
 #define FD(c_) ((MG_SOCKET_TYPE) (size_t) (c_)->fd)
 
-static void udp_ev_connect_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
+static void udp_ev_connect_cb(struct mg_connection *c, int ev, void *ev_data) {
     if (c->fn_data) {
         MG_ERROR(("bad logic error"));
         exit(EXIT_FAILURE);
@@ -77,11 +77,12 @@ static void udp_payload_read_cb(struct mg_connection *c, cJSON *request, cJSON *
     mg_sha1_final(digest, &ctx);
     free(data);
 
-    mg_hex(digest, sizeof(digest), sign_str);
+    mg_snprintf(sign_str, sizeof(sign_str), "%M", mg_print_hex, sizeof(digest), digest);
+
     cJSON_AddStringToObject(root, "sign", sign_str);
 
     char remote[16] = {0};
-    mg_snprintf(remote, sizeof(remote)-1, "%M", mg_print_ip, c->rem);
+    mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, c->rem);
     response = cJSON_Print(root);
 
     MG_INFO(("response: %s -> %s", response, remote));
@@ -97,13 +98,13 @@ done:
         lua_close(L);
 }
 
-static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
+static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data) {
     if (c->fn_data)
         *(uint64_t*)(c->fn_data) = mg_millis();
 
     if (c->recv.len > 0) {
         char remote[16] = {0};
-        mg_snprintf(remote, sizeof(remote)-1, "%M", mg_print_ip, c->rem);
+        mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, c->rem);
 
         MG_INFO(("udp_ev_read_cb: %.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
         struct finder_private *priv = (struct finder_private *)c->mgr->userdata;
@@ -131,7 +132,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
             mg_sha1_final(digest, &ctx);
             free(data);
 
-            mg_hex(digest, sizeof(digest), sign_str);
+            mg_snprintf(sign_str, sizeof(sign_str), "%M", mg_print_hex, sizeof(digest), digest);
 
             if ( mg_casecmp(cJSON_GetStringValue(sign), sign_str) == 0 ) { //sign matched
                 udp_payload_read_cb(c, payload, nonce);
@@ -148,7 +149,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
 
 }
 
-static void udp_ev_poll_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
+static void udp_ev_poll_cb(struct mg_connection *c, int ev, void *ev_data) {
     if (c->is_listening)
         return;
 
@@ -161,7 +162,7 @@ static void udp_ev_poll_cb(struct mg_connection *c, int ev, void *ev_data, void 
     }
 }
 
-static void udp_ev_close_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
+static void udp_ev_close_cb(struct mg_connection *c, int ev, void *ev_data) {
     if (!c->fn_data) {
         return;
     }
@@ -170,19 +171,19 @@ static void udp_ev_close_cb(struct mg_connection *c, int ev, void *ev_data, void
 }
 
 // Event handler for the listening connection.
-static void udp_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
+static void udp_cb(struct mg_connection *c, int ev, void *ev_data) {
     switch (ev) {
         case MG_EV_CONNECT:
-            udp_ev_connect_cb(c, ev, ev_data, fn_data);
+            udp_ev_connect_cb(c, ev, ev_data);
             break;
         case MG_EV_READ:
-            udp_ev_read_cb(c, ev, ev_data, fn_data);
+            udp_ev_read_cb(c, ev, ev_data);
             break;
         case MG_EV_POLL:
-            udp_ev_poll_cb(c, ev, ev_data, fn_data);
+            udp_ev_poll_cb(c, ev, ev_data);
             break;
         case MG_EV_CLOSE:
-            udp_ev_close_cb(c, ev, ev_data, fn_data);
+            udp_ev_close_cb(c, ev, ev_data);
             break;
     }
 }
@@ -282,7 +283,7 @@ static void do_broadcast(void *arg, void *address) {
     mg_sha1_final(digest, &ctx);
     free(data);
 
-    mg_hex(digest, sizeof(digest), sign_str);
+    mg_snprintf(sign_str, sizeof(sign_str), "%M", mg_print_hex, sizeof(digest), digest);
     cJSON_AddStringToObject(root, "sign", sign_str);
 
     printed = cJSON_Print(root);
@@ -411,7 +412,7 @@ int finder_init(void **priv, void *opts) {
     //生成finder id
     char rnd[10];
     mg_random(rnd, sizeof(rnd));
-    mg_hex(rnd, sizeof(rnd), p->cfg.finder_id);
+    mg_snprintf(p->cfg.finder_id, sizeof(p->cfg.finder_id), "%M", mg_print_hex, sizeof(rnd), rnd);
 
     MG_INFO(("finder id: %s", p->cfg.finder_id));
 
