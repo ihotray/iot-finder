@@ -82,7 +82,7 @@ static void udp_payload_read_cb(struct mg_connection *c, cJSON *request, cJSON *
 
     char remote[16] = {0};
     mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, &c->rem);
-    response = cJSON_Print(root);
+    response = cJSON_PrintUnformatted(root);
 
     MG_INFO(("response: %s -> %s", response, remote));
 
@@ -287,7 +287,7 @@ static void do_broadcast(void *arg, void *address) {
     mg_hex(digest, sizeof(digest), sign_str);
     cJSON_AddStringToObject(root, "sign", sign_str);
 
-    printed = cJSON_Print(root);
+    printed = cJSON_PrintUnformatted(root);
     MG_DEBUG(("do_broadcast: %s -> %s", printed, broadcast_address));
     mg_send(c, printed, strlen(printed));
 
