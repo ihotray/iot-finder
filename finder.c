@@ -83,7 +83,7 @@ static void udp_payload_read_cb(struct mg_connection *c, cJSON *request, cJSON *
 
     char remote[16] = {0};
     mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, &c->rem);
-    response = cJSON_Print(root);
+    response = cJSON_PrintUnformatted(root);
 
     MG_INFO(("response: %s -> %s", response, remote));
 
@@ -118,7 +118,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data) {
         if ( cJSON_IsString(service) && mg_casecmp(cJSON_GetStringValue(service), priv->cfg.opts->service) == 0 \
             && cJSON_IsString(finder) && mg_casecmp(cJSON_GetStringValue(finder), priv->cfg.finder_id) \
             && cJSON_IsString(payload) && cJSON_IsNumber(nonce) && cJSON_IsString(sign) \
-            && nonce->valueint + 60 >  mg_millis() / 1000 ) { //只处理60s内的回复，防止重放攻击
+            && nonce->valueint + 60 >  (int32_t)(mg_millis() / 1000) ) { //只处理60s内的回复，防止重放攻击
 
             MG_INFO(("%.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
 
@@ -136,7 +136,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data) {
 
             mg_snprintf(sign_str, sizeof(sign_str), "%M", mg_print_hex, sizeof(digest), digest);
 
-            if ( mg_casecmp(cJSON_GetStringValue(sign), sign_str) == 0 ) { //sign matched
+            if (!priv->cfg.opts->sign || mg_casecmp(cJSON_GetStringValue(sign), sign_str) == 0 ) { //sign matched
                 udp_payload_read_cb(c, payload, nonce);
             } else {
                 MG_ERROR(("sign not matched"));
@@ -249,7 +249,7 @@ static void do_broadcast(void *arg, void *address) {
     }
     setsockopt(FD(c), SOL_SOCKET, SO_BROADCAST, &flag, sizeof(flag));
 
-    uint64_t nonce = mg_millis()/1000;
+    int32_t nonce = (int32_t)(mg_millis()/1000);
 
     root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "service", priv->cfg.opts->service);
@@ -288,7 +288,7 @@ static void do_broadcast(void *arg, void *address) {
     mg_snprintf(sign_str, sizeof(sign_str), "%M", mg_print_hex, sizeof(digest), digest);
     cJSON_AddStringToObject(root, "sign", sign_str);
 
-    printed = cJSON_Print(root);
+    printed = cJSON_PrintUnformatted(root);
     MG_DEBUG(("do_broadcast: %s -> %s", printed, broadcast_address));
     mg_send(c, printed, strlen(printed));
 
