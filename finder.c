@@ -82,7 +82,7 @@ static void udp_payload_read_cb(struct mg_connection *c, cJSON *request, cJSON *
     cJSON_AddStringToObject(root, "sign", sign_str);
 
     char remote[16] = {0};
-    mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, c->rem);
+    mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, &c->rem);
     response = cJSON_Print(root);
 
     MG_INFO(("response: %s -> %s", response, remote));
@@ -104,9 +104,9 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data) {
 
     if (c->recv.len > 0) {
         char remote[16] = {0};
-        mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, c->rem);
+        mg_snprintf(remote, sizeof(remote), "%M", mg_print_ip, &c->rem);
 
-        MG_INFO(("udp_ev_read_cb: %.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
+        MG_DEBUG(("udp_ev_read_cb: %.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
         struct finder_private *priv = (struct finder_private *)c->mgr->userdata;
         cJSON *root = cJSON_ParseWithLength((char *)c->recv.buf, c->recv.len);
         cJSON *service = cJSON_GetObjectItem(root, "service");
@@ -119,6 +119,8 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data) {
             && cJSON_IsString(finder) && mg_casecmp(cJSON_GetStringValue(finder), priv->cfg.finder_id) \
             && cJSON_IsString(payload) && cJSON_IsNumber(nonce) && cJSON_IsString(sign) \
             && nonce->valueint + 60 >  mg_millis() / 1000 ) { //只处理60s内的回复，防止重放攻击
+
+            MG_INFO(("%.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
 
             //check sign, sha1(service + finder + payload + nonce + key)
             unsigned char digest[20] = {0};
@@ -141,7 +143,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data) {
             }
 
         } else {
-            MG_ERROR(("unexpected message"));
+            MG_DEBUG(("unexpected message"));
         }
         cJSON_Delete(root);
     }
@@ -217,7 +219,7 @@ static cJSON* load_message(void *handle, const char *message) {
         goto done;
     }
 
-    MG_INFO(("ret: %s", ret));
+    MG_DEBUG(("ret: %s", ret));
 
 done:
     if (ret) {
@@ -287,7 +289,7 @@ static void do_broadcast(void *arg, void *address) {
     cJSON_AddStringToObject(root, "sign", sign_str);
 
     printed = cJSON_Print(root);
-    MG_INFO(("do_broadcast: %s -> %s", printed, broadcast_address));
+    MG_DEBUG(("do_broadcast: %s -> %s", printed, broadcast_address));
     mg_send(c, printed, strlen(printed));
 
 done:
@@ -306,20 +308,24 @@ static void broadcast(void *arg) {
         MG_ERROR(("unable to get interface addresses\n"));
 
     for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
-        if (!ifa->ifa_addr)
+        if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET)
+            continue;
+        if (!ifa->ifa_netmask || ifa->ifa_netmask->sa_family != AF_INET)
             continue;
         if (!(ifa->ifa_flags & IFF_UP) || !(ifa->ifa_flags & IFF_BROADCAST))
             continue;
         if ((ifa->ifa_flags & IFF_LOOPBACK) || (ifa->ifa_flags & IFF_POINTOPOINT))
             continue;
 
-        if (ifa->ifa_addr->sa_family == AF_INET) {
-            struct sockaddr_in* saddr = (struct sockaddr_in*)ifa->ifa_ifu.ifu_broadaddr;
-            char broadcast_address[32] = {0};
-            inet_ntop(AF_INET, &(saddr->sin_addr), broadcast_address, sizeof(broadcast_address));
-            MG_INFO(("%16s's broadcast address: %s", ifa->ifa_name, broadcast_address));
-            do_broadcast(arg, broadcast_address);
-        }
+        struct sockaddr_in* netmask = (struct sockaddr_in*)ifa->ifa_netmask;
+        if (netmask->sin_addr.s_addr == 0xffffffff)  //32bit mask, don't need broadcast
+            continue;
+
+        struct sockaddr_in* saddr = (struct sockaddr_in*)ifa->ifa_ifu.ifu_broadaddr;
+        char broadcast_address[32] = {0};
+        inet_ntop(AF_INET, &(saddr->sin_addr), broadcast_address, sizeof(broadcast_address));
+        MG_INFO(("%16s's broadcast address: %s", ifa->ifa_name, broadcast_address));
+        do_broadcast(arg, broadcast_address);
     }
 
     if (ifaddr)
@@ -366,7 +372,7 @@ void timer_finder_fn(void *arg) {
         if (now < s_next_broadcast_time) //not time yet
             return;
 
-        MG_INFO(("broadcasting..."));
+        MG_DEBUG(("broadcasting..."));
         broadcast(arg);
 
         s_next_broadcast_time = now + (priv->cfg.opts->time*1000)/priv->cfg.opts->count;
