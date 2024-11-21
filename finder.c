@@ -135,7 +135,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
 
             mg_hex(digest, sizeof(digest), sign_str);
 
-            if ( mg_casecmp(cJSON_GetStringValue(sign), sign_str) == 0 ) { //sign matched
+            if (!priv->cfg.opts->sign || mg_casecmp(cJSON_GetStringValue(sign), sign_str) == 0 ) { //sign matched
                 udp_payload_read_cb(c, payload, nonce);
             } else {
                 MG_ERROR(("sign not matched"));

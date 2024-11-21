@@ -11,6 +11,7 @@ static void usage(char *prog) {
             "  -p PORT     - udp broadcast port, default: '%s'\n"
             "  -x PATH     - finder callback lua script, default: '%s'\n"
             "  -d DATA     - finder broadcast default data, defualt: NULL\n"
+            "  -s SIGN     - enable/disable check sign, 1: enable, 0: disable, defualt: %d\n"
             "  -k KEY      - udp data sign key, defualt: '******'\n"
             "  -t TIME     - time in seconds to broadcast, defualt: %d\n"
             "  -c COUNT    - udp broadcast request every time, defualt: %d\n"
@@ -20,7 +21,7 @@ static void usage(char *prog) {
             "\n"
             "  kill -USR2 `pidof %s` stop broadcast data\n"
             "\n",
-            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 60, 1, MG_LL_INFO, basename(prog), basename(prog));
+            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 1, 60, 1, MG_LL_INFO, basename(prog), basename(prog));
 
     exit(EXIT_FAILURE);
 }
@@ -33,6 +34,7 @@ int main(int argc, char *argv[]) {
         .callback_lua = "/www/iot/handler/finder.lua",
         .payload = NULL,
         .time = 60,
+        .sign = 1,
         .key = "1a2b3C4D5e6f",
         .count = 1,
         .debug_level = MG_LL_INFO
@@ -48,7 +50,9 @@ int main(int argc, char *argv[]) {
             opts.callback_lua = argv[++i];
         } else if (strcmp(argv[i], "-d") == 0) {
             opts.payload = argv[++i];
-        } else if (strcmp(argv[i], "-k") == 0) {
+        } else if (strcmp(argv[i], "-s") == 0) {
+            opts.sign = atoi(argv[++i]);
+        }  else if (strcmp(argv[i], "-k") == 0) {
             opts.key = argv[++i];
         } else if (strcmp(argv[i], "-t") == 0) {
             opts.time = atoi(argv[++i]);
