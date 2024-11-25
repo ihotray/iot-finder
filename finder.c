@@ -116,8 +116,7 @@ static void udp_ev_read_cb(struct mg_connection *c, int ev, void *ev_data, void 
         //check service name matched and drop the message from itself
         if ( cJSON_IsString(service) && mg_casecmp(cJSON_GetStringValue(service), priv->cfg.opts->service) == 0 \
             && cJSON_IsString(finder) && mg_casecmp(cJSON_GetStringValue(finder), priv->cfg.finder_id) \
-            && cJSON_IsString(payload) && cJSON_IsNumber(nonce) && cJSON_IsString(sign) \
-            && nonce->valueint + 60 >  (int32_t)(mg_millis() / 1000) ) { //只处理60s内的回复，防止重放攻击
+            && cJSON_IsString(payload) && cJSON_IsNumber(nonce) && cJSON_IsString(sign) ) {
 
             MG_INFO(("%.*s <- %s", c->recv.len, (char *)c->recv.buf, remote));
 
