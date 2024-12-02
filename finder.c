@@ -189,7 +189,7 @@ static void udp_cb(struct mg_connection *c, int ev, void *ev_data) {
     }
 }
 
-static cJSON* load_message(void *handle, const char *message) {
+static cJSON* load_message(void *handle, const char *message, const char *param) {
     struct finder_private *priv = (struct finder_private *)handle;
     cJSON *payload = NULL;
     const char *ret = NULL;
@@ -207,7 +207,9 @@ static cJSON* load_message(void *handle, const char *message) {
         goto done;
     }
 
-    if (lua_pcall(L, 0, 1, 0)) {//0 param, one return values, zero error func
+    lua_pushstring(L, param);
+
+    if (lua_pcall(L, 1, 1, 0)) {//1 param, one return values, zero error func
         MG_ERROR(("callback failed"));
         goto done;
     }
@@ -237,7 +239,7 @@ static void do_broadcast(void *arg, void *address) {
     struct finder_private *priv = (struct finder_private *)mgr->userdata;
     struct mg_connection *c;
     cJSON *root = NULL, *payload = NULL;
-    char *printed = NULL;
+    char *printed = NULL, *param = NULL;
     int flag = 1;
 
     char *broadcast_address = mg_mprintf("udp://%s:%s", address, priv->cfg.opts->broadcast_port);
@@ -254,7 +256,8 @@ static void do_broadcast(void *arg, void *address) {
     cJSON_AddStringToObject(root, "service", priv->cfg.opts->service);
     cJSON_AddStringToObject(root, "finder", priv->cfg.finder_id);
 
-    payload = load_message(priv, priv->cfg.opts->payload); //maybe change default payload by lua script
+    param = mg_mprintf("{\"address\":\"%s\"}", address);
+    payload = load_message(priv, priv->cfg.opts->payload, param); //maybe change default payload by lua script
     if (!payload) //no payload, skip this broadcast
         goto done;
 
@@ -293,6 +296,8 @@ static void do_broadcast(void *arg, void *address) {
 
 done:
     free(broadcast_address);
+    if (param)
+        free(param);
     if (printed)
         cJSON_free((void*)printed);
     if (root)
