@@ -1,1 +1,1 @@
-finder:  a discovery cli, work with broadcaster, base on libiot
+iot-finder:  a discovery cli, work with broadcaster, base on libiot

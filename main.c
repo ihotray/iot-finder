@@ -21,7 +21,7 @@ static void usage(char *prog) {
             "\n"
             "  kill -USR2 `pidof %s` stop broadcast data\n"
             "\n",
-            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/finder.lua", 1, 60, 1, MG_LL_INFO, basename(prog), basename(prog));
+            MG_VERSION, prog, "iot-device", "5858", "/www/iot/handler/iot-finder.lua", 1, 60, 1, MG_LL_INFO, basename(prog), basename(prog));
 
     exit(EXIT_FAILURE);
 }
@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     struct finder_option opts = {
         .service = "iot-device",
         .broadcast_port = "5858",
-        .callback_lua = "/www/iot/handler/finder.lua",
+        .callback_lua = "/www/iot/handler/iot-finder.lua",
         .payload = NULL,
         .time = 60,
         .sign = 1,
