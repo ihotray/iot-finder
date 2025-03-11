@@ -233,7 +233,21 @@ done:
     return payload;
 }
 
-static void do_broadcast(void *arg, void *address) {
+union usa {
+    struct sockaddr sa;
+    struct sockaddr_in sin;
+};
+
+static socklen_t tousa(struct mg_addr *a, union usa *usa) {
+    socklen_t len = sizeof(usa->sin);
+    memset(usa, 0, sizeof(*usa));
+    usa->sin.sin_family = AF_INET;
+    usa->sin.sin_port = a->port;
+    memcpy(&usa->sin.sin_addr, a->ip, sizeof(uint32_t));
+    return len;
+}
+
+static void do_broadcast(void *arg, void *if_address, void *broadcast_address) {
     struct mg_mgr *mgr = (struct mg_mgr *)arg;
     struct finder_private *priv = (struct finder_private *)mgr->userdata;
     struct mg_connection *c;
@@ -241,13 +255,18 @@ static void do_broadcast(void *arg, void *address) {
     char *printed = NULL, *param = NULL;
     int flag = 1;
 
-    char *broadcast_address = mg_mprintf("udp://%s:%s", address, priv->cfg.opts->broadcast_port);
-    c = mg_connect(mgr, broadcast_address, udp_cb, NULL);
+    char *address = mg_mprintf("udp://%s:%s", broadcast_address, priv->cfg.opts->broadcast_port);
+    c = mg_connect(mgr, address, udp_cb, NULL);
     if (!c) {
-        MG_ERROR(("cannot connect to %s", broadcast_address));
+        MG_ERROR(("cannot connect to %s", address));
         goto done;
     }
     setsockopt(FD(c), SOL_SOCKET, SO_BROADCAST, &flag, sizeof(flag));
+
+    mg_aton(mg_str(if_address), &c->loc);
+    union usa usa;
+    socklen_t slen = tousa(&c->loc, &usa);
+    bind(FD(c), &usa.sa, slen);
 
     int32_t nonce = (int32_t)(mg_millis()/1000);
 
@@ -255,7 +274,7 @@ static void do_broadcast(void *arg, void *address) {
     cJSON_AddStringToObject(root, "service", priv->cfg.opts->service);
     cJSON_AddStringToObject(root, "finder", priv->cfg.finder_id);
 
-    param = mg_mprintf("{\"address\":\"%s\"}", address);
+    param = mg_mprintf("{\"from\":\"%s\", \"address\":\"%s\"}", if_address, broadcast_address);
     payload = load_message(priv, priv->cfg.opts->payload, param); //maybe change default payload by lua script
     if (!payload) //no payload, skip this broadcast
         goto done;
@@ -263,7 +282,7 @@ static void do_broadcast(void *arg, void *address) {
     //add address to payload
     cJSON *new_payload = cJSON_Parse(cJSON_GetStringValue(payload));
     if (new_payload) {
-        cJSON_AddStringToObject(new_payload, "address", address);
+        cJSON_AddStringToObject(new_payload, "address", broadcast_address);
         char *new_payload_str = cJSON_PrintUnformatted(new_payload);
         cJSON_SetValuestring(payload, new_payload_str);
         cJSON_free((void*)new_payload_str);
@@ -290,11 +309,11 @@ static void do_broadcast(void *arg, void *address) {
     cJSON_AddStringToObject(root, "sign", sign_str);
 
     printed = cJSON_PrintUnformatted(root);
-    MG_DEBUG(("do_broadcast: %s -> %s", printed, broadcast_address));
+    MG_DEBUG(("do_broadcast: %s -> %s", printed, address));
     mg_send(c, printed, strlen(printed));
 
 done:
-    free(broadcast_address);
+    free(address);
     if (param)
         free(param);
     if (printed)
@@ -327,8 +346,12 @@ static void broadcast(void *arg) {
         struct sockaddr_in* saddr = (struct sockaddr_in*)ifa->ifa_ifu.ifu_broadaddr;
         char broadcast_address[32] = {0};
         inet_ntop(AF_INET, &(saddr->sin_addr), broadcast_address, sizeof(broadcast_address));
-        MG_INFO(("%16s's broadcast address: %s", ifa->ifa_name, broadcast_address));
-        do_broadcast(arg, broadcast_address);
+
+        saddr = (struct sockaddr_in*)ifa->ifa_addr;
+        char if_address[32] = {0};
+        inet_ntop(AF_INET, &(saddr->sin_addr), if_address, sizeof(if_address));
+        MG_INFO(("%16s's broadcast address: %s from %s", ifa->ifa_name, broadcast_address, if_address));
+        do_broadcast(arg, if_address, broadcast_address);
     }
 
     if (ifaddr)
