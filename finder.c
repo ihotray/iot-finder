@@ -163,9 +163,17 @@ static void udp_ev_poll_cb(struct mg_connection *c, int ev, void *ev_data, void 
 }
 
 static void udp_ev_close_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
+
+    struct finder_private *priv = (struct finder_private *)c->mgr->userdata;
+    if (c == priv->conn) {
+        MG_INFO(("listener connection closed"));
+        priv->conn = NULL;
+    }
+
     if (!c->fn_data) {
         return;
     }
+
     free(c->fn_data);
     c->fn_data = NULL;
 }
@@ -393,7 +401,19 @@ done:
 void timer_finder_fn(void *arg) {
     struct mg_mgr *mgr = (struct mg_mgr *)arg;
     struct finder_private *priv = (struct finder_private *)mgr->userdata;
-    if (s_sig_broadcast) {
+
+    if ( !priv->conn ) {
+        char *listen_address = mg_mprintf("udp://:%s", priv->cfg.opts->broadcast_port);
+        struct mg_connection *c = mg_listen(&priv->mgr, listen_address, udp_cb, NULL);
+        free(listen_address);
+        if (!c) {
+            MG_ERROR(("Cannot listen on %s. Use udp://ADDR:PORT or :PORT", priv->cfg.opts->broadcast_port));
+        } else {
+            priv->conn = c;
+        }
+    }
+
+    if ( priv->conn && s_sig_broadcast ) {
         uint64_t now = mg_millis();
         if (now < s_next_broadcast_time) //not time yet
             return;
@@ -408,6 +428,7 @@ void timer_finder_fn(void *arg) {
             on_finish_cb(arg);  //call lua script on_finish
         }
     }
+
 }
 
 static void signal_handler(int signo) {
@@ -455,15 +476,6 @@ int finder_init(void **priv, void *opts) {
 
     p->mgr.userdata = p;
 
-    //receive broadcast's packet as controller
-    char *listen_address = mg_mprintf("udp://:%s", p->cfg.opts->broadcast_port);
-    struct mg_connection *c = mg_listen(&p->mgr, listen_address, udp_cb, NULL);
-    free(listen_address);
-    if (!c) {
-        MG_ERROR(("Cannot listen on %s. Use udp://ADDR:PORT or :PORT", p->cfg.opts->broadcast_port));
-        goto out_err;
-    }
-
     //send broadcast packet as agent
     mg_timer_add(&p->mgr, 1000, timer_opts, timer_finder_fn, &p->mgr);  //1s, repeat broadcast if need
 
@@ -471,9 +483,6 @@ int finder_init(void **priv, void *opts) {
 
     return 0;
 
-out_err:
-    free(p);
-    return -1;
 }
 
 

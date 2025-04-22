@@ -25,6 +25,7 @@ struct finder_config {
 struct finder_private {
     struct finder_config cfg;
     struct mg_mgr mgr;
+    struct mg_connection *conn; //listener
 };
 
 int finder_main(void *user_options);
