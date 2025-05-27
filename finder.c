@@ -165,9 +165,9 @@ static void udp_ev_poll_cb(struct mg_connection *c, int ev, void *ev_data, void 
 static void udp_ev_close_cb(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
 
     struct finder_private *priv = (struct finder_private *)c->mgr->userdata;
-    if (c == priv->conn) {
+    if (c == priv->listener) {
         MG_INFO(("listener connection closed"));
-        priv->conn = NULL;
+        priv->listener = NULL;
     }
 
     if (!c->fn_data) {
@@ -402,18 +402,18 @@ void timer_finder_fn(void *arg) {
     struct mg_mgr *mgr = (struct mg_mgr *)arg;
     struct finder_private *priv = (struct finder_private *)mgr->userdata;
 
-    if ( !priv->conn ) {
+    if ( !priv->listener ) {
         char *listen_address = mg_mprintf("udp://:%s", priv->cfg.opts->broadcast_port);
         struct mg_connection *c = mg_listen(&priv->mgr, listen_address, udp_cb, NULL);
         free(listen_address);
         if (!c) {
             MG_ERROR(("Cannot listen on %s. Use udp://ADDR:PORT or :PORT", priv->cfg.opts->broadcast_port));
         } else {
-            priv->conn = c;
+            priv->listener = c;
         }
     }
 
-    if ( priv->conn && s_sig_broadcast ) {
+    if ( priv->listener && s_sig_broadcast ) {
         uint64_t now = mg_millis();
         if (now < s_next_broadcast_time) //not time yet
             return;
